@@ -1,3 +1,5 @@
+#pragma pack(1)
+
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/mman.h>
@@ -32,7 +34,9 @@ typedef unsigned int u32;    //4字节
 #define TRUE 1
 #define FALSE 0
 
-char filePath[] = "../a.img";
+#define CLU_FIN 0xFF7 // 簇号要小于0xFF7
+
+char filePath[] = "../c.img";
 char input[512];
 int input_pos = 0;
 FILE *fat12;
@@ -44,8 +48,8 @@ struct ListNode {
     int startPos; // 内容的起始位置，方便文件读取。点和点点为0
     int type; // 0为文件夹，1为文件，-1为终止结点
     int subPos; // 指向子目录的起始下标，txt或点或点点都为-1
-    int fileNum;
-    int dirNum;
+    int fileNum; // 子文件数量
+    int dirNum; // 子文件夹数量
 };
 int listSize = 0; // 数组的大小,也作为可插入坐标计数
 struct ListNode listTotal[100];
@@ -61,6 +65,32 @@ struct RootEntry {
     u32 DIR_FileSize; // 文件大小
 };
 //根目录条目结束，32字节
+
+/**
+ * get next cluster
+ * @param cluster
+ * @return 值大于或等于0xFF8，则表示当前簇已经是本文件的最后一个簇。如果值为0xFF7，表示它是一个坏簇。
+ */
+int getNextCluster(int cluster) {
+    //获得下一个簇号
+
+    //一个FAT表项存储为1.5个字节，若为奇数，则取第二个字节起始位置。若为偶数则取第一个字节起始地址
+    int clusPos = FAT_START + cluster * 3 / 2;
+    //读出该FAT项所在的两个字节
+    unsigned short readOut;
+    unsigned short *read_ptr = &readOut;
+
+    fseek(fat12, clusPos, SEEK_SET);
+    fread(read_ptr, 1, 2, fat12);
+
+    //如果簇号是偶数，取两个字节的低12位
+    //如果簇号是奇数，取两个字节的高12位
+    if (cluster % 2 == 0) {
+        return readOut & 0xFFF;
+    } else {
+        return readOut >> 4;
+    }
+}
 
 /**
  * make this level end
@@ -130,7 +160,8 @@ void load(int parentNode, int begin) {
     listTotal[parentNode].subPos = listSize;
     struct RootEntry entry;
     struct RootEntry *entry_ptr = &entry;
-    for (int i = 0; i < 15; i++) {
+
+    for (int i = 0; i < 16; i++) {  // 一个扇区有512个字节，一共16个条目
         fseek(fat12, begin + i * 32, 0);
         fread(entry_ptr, 1, 32, fat12); // 根目录中每个条目占32个字节，每次读1个字节
 
@@ -182,9 +213,11 @@ void load(int parentNode, int begin) {
                 name[cnt] = '\0';
 
             }
+            listSize++;
         }
-        listSize++;
     }
+
+
     initEndNode();
 
     // recursion to find each sub file
@@ -198,7 +231,7 @@ void load(int parentNode, int begin) {
 
 void loadFile() {
     fat12 = fopen(filePath, "rb");    // 打开FAT12的映像文件
-    assert(fat12 >= 0);
+    assert(fat12 > 0);
     listInit();
     load(0, ROOT_START);
 }
@@ -239,31 +272,31 @@ int ls_print(const char *name, int isPrint, int root, int l_param) {
     }
     pos = listNode->subPos;
     while (pos > 0 && listTotal[pos].type != -1) {
-        if(ls_print(name, isPrint, pos, l_param)) res = TRUE;
+        if (ls_print(name, isPrint, pos, l_param)) res = TRUE;
         pos++;
     }
     return res;
 }
 
-void instruction_ls(const char * inputString, int l_param) {
+void instruction_ls(const char *inputString, int l_param) {
     int pos = 0;
     char name[60];
     memset(name, 0, 60);
     int cnt = 0;
 
-    while(inputString[pos] == ' '){
+    while (inputString[pos] == ' ') {
         pos++;
     }
-    if(l_param){
-        while(TRUE){
-            if(inputString[pos] == '-'){
-                while (inputString[pos] != ' ' && inputString[pos] != '\n'){
+    if (l_param) {
+        while (TRUE) {
+            if (inputString[pos] == '-') {
+                while (inputString[pos] != ' ' && inputString[pos] != '\n') {
                     pos++;
                 }
-            } else{
+            } else {
                 break;
             }
-            while(inputString[pos] == ' '){
+            while (inputString[pos] == ' ') {
                 pos++;
             }
         }
@@ -273,19 +306,19 @@ void instruction_ls(const char * inputString, int l_param) {
     }
     name[cnt++] = '/';
     int twoFiles = FALSE;
-    while(inputString[pos] != '\n'){
-        if(inputString[pos] != ' '){
-            if(l_param){
-                if(inputString[pos] == '-'){
-                    while (inputString[pos] != ' ' && inputString[pos] != '\n'){
+    while (inputString[pos] != '\n') {
+        if (inputString[pos] != ' ') {
+            if (l_param) {
+                if (inputString[pos] == '-') {
+                    while (inputString[pos] != ' ' && inputString[pos] != '\n') {
                         pos++;
                     }
                     pos--;
-                }else{
+                } else {
                     twoFiles = TRUE;
                     break;
                 }
-            }else{
+            } else {
                 twoFiles = TRUE;
                 break;
             }
@@ -293,39 +326,62 @@ void instruction_ls(const char * inputString, int l_param) {
         pos++;
     }
 
-    if(twoFiles){
-        printf("Please input one file name.\n");
+    if (twoFiles) {
+        printf("Please input one directory name.\n");
+        return;
+    }else if(strcmp(&name[strlen(name) - 5], ".TXT/") == 0){
+        printf("Please input directory name.\n");
         return;
     }
     int res = ls_print(name, FALSE, 0, l_param);
-    if(res == 0){
+    if (res == 0) {
         printf("Can,t find directory, please input right directory name.\n");
     }
 }
 
-int cat_print(const char * name, int isPrint, int root) {
+int cat_print(const char *name, int isPrint, int root) {
     struct ListNode *listNode = &listTotal[root];
     if (strcmp(name, listNode->totalName) == 0) {
         isPrint = TRUE;
     }
     int res = isPrint;
     if (isPrint) {
-        char output[2048];
-        memset(output, 0, 2048);
-        fseek(fat12, listNode->startPos, 0);
-        fread(output, 1, listNode->size, fat12);
-        printf("%s", output);
+        char output[1000000];
+        memset(output, 0, 1000000);
+        if (listNode->size < 512) {
+            fseek(fat12, listNode->startPos, 0);
+            fread(output, 1, listNode->size, fat12);
+            printf("%s", output);
+        } else {
+            int size = listNode->size;
+            int clusterNum = listNode->startPos;
+            while (size > 0) {
+                if (size > 512) {
+                    fseek(fat12, clusterNum, 0);
+                    fread(output, 1, 512, fat12);
+                    printf("%s", output);
+                } else {
+                    fseek(fat12, clusterNum, 0);
+                    fread(output, 1, size, fat12);
+                    printf("%s", output);
+                }
+                clusterNum = (getNextCluster((clusterNum / 512) - 31) + 31) * 512;
+                size -= 512;
+                memset(output, 0, 1000000);
+//                printf("%d\n", clusterNum);
+            }
+        }
     } else {
         int pos = listNode->subPos;
         while (pos > 0 && listTotal[pos].type != -1) {
-            if(cat_print(name, isPrint, pos)) res = TRUE;
+            if (cat_print(name, isPrint, pos)) res = TRUE;
             pos++;
         }
     }
     return res;
 }
 
-void instruction_cat(const char * inputString) {
+void instruction_cat(const char *inputString) {
     int pos = 0;
     char name[60];
     memset(name, 0, 60);
@@ -344,34 +400,34 @@ void instruction_cat(const char * inputString) {
 
     int twoFiles = FALSE;
     int tempPos = pos;
-    while(tempPos > 0){
-        if(inputString[tempPos] != ' '){
+    while (tempPos > 0) {
+        if (inputString[tempPos] != ' ') {
             twoFiles = TRUE;
             break;
         }
         tempPos--;
     }
-    if(twoFiles){
+    if (twoFiles) {
         printf("Please input one file name.\n");
         return;
     }
 
     pos++;
-    if(inputString[pos] != '/'){
+    if (inputString[pos] != '/') {
         name[cnt++] = '/';
     }
     while (inputString[pos] != ' ' && inputString[pos] != '\n') {
         name[cnt++] = inputString[pos++];
     }
 
-    if(strcmp(".TXT", &name[cnt - 4]) != 0){
+    if (strcmp(".TXT", &name[cnt - 4]) != 0) {
         printf("Please input file name.\n");
         return;
     }
 //    printf("%s", name);
     name[cnt] = '/';
     int res = cat_print(name, FALSE, 0);
-    if(res == 0){
+    if (res == 0) {
         printf("Can't find file, please input right file name.\n");
     }
 }
@@ -384,25 +440,25 @@ int readInput() { // 0 exit, 1 ls, 2 ls -l, 3 cat, 4 incorrect param
     fgets(input, 500, stdin);
     int type = -1; // 0 exit, 1 ls, 2 ls -l, 3 cat
     int inputPos = 0;
-    while(input[inputPos] == ' '){
+    while (input[inputPos] == ' ') {
         inputPos++;
     }
 
     if (input[inputPos] == 'l' && input[inputPos + 1] == 's' &&
-    (input[inputPos + 2] == ' ' || input[inputPos + 2] == '\n')) {
+        (input[inputPos + 2] == ' ' || input[inputPos + 2] == '\n')) {
         type = LIST_FILE;
         int pos = 0;
         while (input[pos] != '\0') {
             if (input[pos] == '-') {
-                if(input[pos + 1] == 'l'){
-                    if((input[pos + 2] == ' ' || input[pos + 2] == '\n') ||
-                    (input[pos + 2] == 'l' && input[pos + 3] == ' ') ||
-                    (input[pos + 2] == 'l' && input[pos + 3] == '\n')){
+                if (input[pos + 1] == 'l') {
+                    if ((input[pos + 2] == ' ' || input[pos + 2] == '\n') ||
+                        (input[pos + 2] == 'l' && input[pos + 3] == ' ') ||
+                        (input[pos + 2] == 'l' && input[pos + 3] == '\n')) {
                         type = LIST_FILE_L;
-                    } else{
+                    } else {
                         type = MIS_PARAM;
                     }
-                }else{
+                } else {
                     type = MIS_PARAM;
                 }
                 break;
@@ -410,10 +466,11 @@ int readInput() { // 0 exit, 1 ls, 2 ls -l, 3 cat, 4 incorrect param
             pos++;
         }
     } else if (input[inputPos] == 'c' && input[inputPos + 1] == 'a' && input[inputPos + 2] == 't'
-    && (input[inputPos + 3] == ' ' || input[inputPos + 3] == '\n')) {
+               && (input[inputPos + 3] == ' ' || input[inputPos + 3] == '\n')) {
         type = CAT;
-    } else if (input[inputPos] == 'e' && input[inputPos + 1] == 'x' && input[inputPos + 2] == 'i' && input[inputPos + 3] == 't'
-    && (input[inputPos + 4] == ' ' || input[inputPos + 4] == '\n')) {
+    } else if (input[inputPos] == 'e' && input[inputPos + 1] == 'x' && input[inputPos + 2] == 'i' &&
+               input[inputPos + 3] == 't'
+               && (input[inputPos + 4] == ' ' || input[inputPos + 4] == '\n')) {
         type = EXIT;
     }
 

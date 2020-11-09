@@ -67,6 +67,33 @@ struct RootEntry {
 };
 //根目录条目结束，32字节
 
+
+/**
+ * get next cluster
+ * @param cluster
+ * @return 值大于或等于0xFF8，则表示当前簇已经是本文件的最后一个簇。如果值为0xFF7，表示它是一个坏簇。
+ */
+int getNextCluster(int cluster) {
+    //获得下一个簇号
+
+    //一个FAT表项存储为1.5个字节，若为奇数，则取第二个字节起始位置。若为偶数则取第一个字节起始地址
+    int clusPos = FAT_START + cluster * 3 / 2;
+    //读出该FAT项所在的两个字节
+    unsigned short readOut;
+    unsigned short *read_ptr = &readOut;
+
+    fseek(fat12, clusPos, SEEK_SET);
+    fread(read_ptr, 1, 2, fat12);
+
+    //如果簇号是偶数，取两个字节的低12位
+    //如果簇号是奇数，取两个字节的高12位
+    if (cluster % 2 == 0) {
+        return readOut & 0xFFF;
+    } else {
+        return readOut >> 4;
+    }
+}
+
 /**
  * make this level end
  */
@@ -135,7 +162,7 @@ void load(int parentNode, int begin) {
     listTotal[parentNode].subPos = listSize;
     struct RootEntry entry;
     struct RootEntry *entry_ptr = &entry;
-    for (int i = 0; i < 15; i++) {
+    for (int i = 0; i < 16; i++) {
         fseek(fat12, begin + i * 32, 0);
         fread(entry_ptr, 1, 32, fat12); // 根目录中每个条目占32个字节，每次读1个字节
 
@@ -187,8 +214,9 @@ void load(int parentNode, int begin) {
                 name[cnt] = '\0';
 
             }
+            listSize++;
         }
-        listSize++;
+
     }
     initEndNode();
 
@@ -319,6 +347,9 @@ void instruction_ls(const char * inputString, int l_param) {
     if(twoFiles){
         printf("Please input one file name.\n");
         return;
+    }else if(strcmp(&name[strlen(name) - 5], ".TXT/") == 0){
+        printf("Please input directory name.\n");
+        return;
     }
     int res = ls_print(name, FALSE, 0, l_param);
     if(res == 0){
@@ -333,11 +364,31 @@ int cat_print(const char * name, int isPrint, int root) {
     }
     int res = isPrint;
     if (isPrint) {
-        char output[2048];
-        memset(output, 0, 2048);
-        fseek(fat12, listNode->startPos, 0);
-        fread(output, 1, listNode->size, fat12);
-        printf("%s", output);
+        char output[1000000];
+        memset(output, 0, 1000000);
+        if (listNode->size < 512) {
+            fseek(fat12, listNode->startPos, 0);
+            fread(output, 1, listNode->size, fat12);
+            printf("%s", output);
+        } else {
+            int size = listNode->size;
+            int clusterNum = listNode->startPos;
+            while (size > 0) {
+                if (size > 512) {
+                    fseek(fat12, clusterNum, 0);
+                    fread(output, 1, 512, fat12);
+                    printf("%s", output);
+                } else {
+                    fseek(fat12, clusterNum, 0);
+                    fread(output, 1, size, fat12);
+                    printf("%s", output);
+                }
+                clusterNum = (getNextCluster((clusterNum / 512) - 31) + 31) * 512;
+                size -= 512;
+                memset(output, 0, 1000000);
+//                printf("%d\n", clusterNum);
+            }
+        }
     } else {
         int pos = listNode->subPos;
         while (pos > 0 && listTotal[pos].type != -1) {
