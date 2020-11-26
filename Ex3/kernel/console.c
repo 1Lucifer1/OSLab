@@ -27,8 +27,11 @@ PRIVATE void set_video_start_addr(u32 addr);
 PRIVATE void flush(CONSOLE* p_con);
 PRIVATE void reset_stay_time();
 PRIVATE void clean(CONSOLE* p_con);
+PRIVATE void search(CONSOLE* p_con);
+PRIVATE void reset_text_color(CONSOLE* p_con);
 
 PRIVATE int stay_time = 0;
+EXTERN int mode;
 
 /*======================================================================*
 			   init_screen
@@ -81,45 +84,78 @@ PUBLIC void out_char(CONSOLE* p_con, char ch)
 
 	switch(ch) {
 	case '\n':
-		if (p_con->cursor < p_con->original_addr +
-		    p_con->v_mem_limit - SCREEN_WIDTH) {
-			unsigned int cursor = p_con->original_addr + SCREEN_WIDTH * 
-				((p_con->cursor - p_con->original_addr) /
-				 SCREEN_WIDTH + 1);
-			while(p_con->cursor != cursor){
-				*(p_vmem++) = ' ';
-				*(p_vmem++) = BLACK;
-				p_con->cursor++;
-			}	
+		if(mode == INSERT){
+			if (p_con->cursor < p_con->original_addr +
+		    	p_con->v_mem_limit - SCREEN_WIDTH) {
+				unsigned int cursor = p_con->original_addr + SCREEN_WIDTH * 
+					((p_con->cursor - p_con->original_addr) /
+					 SCREEN_WIDTH + 1);
+				while(p_con->cursor != cursor){
+					*(p_vmem++) = ' ';
+					*(p_vmem++) = BLACK;
+					p_con->cursor++;
+				}	
 			
+			}
+		}else{
+			search(p_con);
 		}
 		break;
 	case '\b':
-		if (p_con->cursor > p_con->original_addr) {
-			if(*(p_vmem-1) == BLACK){
-				int cnt = 0;
-				while(*(p_vmem - 1) == BLACK && cnt < SCREEN_WIDTH){
+		if(mode == INSERT){
+			if (p_con->cursor > p_con->original_addr) {
+				if(*(p_vmem-1) == BLACK){
+					int cnt = 0;
+					while(*(p_vmem - 1) == BLACK && cnt < SCREEN_WIDTH){
+						p_con->cursor--;
+						*(p_vmem-2) = ' ';
+						*(p_vmem-1) = DEFAULT_CHAR_COLOR;
+						p_vmem -= 2;
+						cnt++;
+					}
+				}else if(*(p_vmem-1) == BLUE){
+					int cnt = 0;
+					while(cnt < 4){
+						p_con->cursor--;
+						*(p_vmem-2) = ' ';
+						*(p_vmem-1) = DEFAULT_CHAR_COLOR;
+						p_vmem -= 2;
+						cnt++;
+					}
+				}else{
 					p_con->cursor--;
 					*(p_vmem-2) = ' ';
 					*(p_vmem-1) = DEFAULT_CHAR_COLOR;
-					p_vmem -= 2;
-					cnt++;
 				}
-			}else if(*(p_vmem-1) == BLUE){
-				int cnt = 0;
-				while(cnt < 4){
-					p_con->cursor--;
-					*(p_vmem-2) = ' ';
-					*(p_vmem-1) = DEFAULT_CHAR_COLOR;
-					p_vmem -= 2;
-					cnt++;
-				}
-			}else{
-				p_con->cursor--;
-				*(p_vmem-2) = ' ';
-				*(p_vmem-1) = DEFAULT_CHAR_COLOR;
-			}
 
+			}
+		}else{
+			if (p_con->cursor > p_con->search_cursor) {
+				if(*(p_vmem-1) == BLACK){
+					int cnt = 0;
+					while(*(p_vmem - 1) == BLACK && cnt < SCREEN_WIDTH){
+						p_con->cursor--;
+						*(p_vmem-2) = ' ';
+						*(p_vmem-1) = DEFAULT_CHAR_COLOR;
+						p_vmem -= 2;
+						cnt++;
+					}
+				}else if(*(p_vmem-1) == BLUE){
+					int cnt = 0;
+					while(cnt < 4){
+						p_con->cursor--;
+						*(p_vmem-2) = ' ';
+						*(p_vmem-1) = DEFAULT_CHAR_COLOR;
+						p_vmem -= 2;
+						cnt++;
+					}
+				}else{
+					p_con->cursor--;
+					*(p_vmem-2) = ' ';
+					*(p_vmem-1) = DEFAULT_CHAR_COLOR;
+				}
+
+			}
 		}
 		break;
 	case '\t':
@@ -139,7 +175,12 @@ PUBLIC void out_char(CONSOLE* p_con, char ch)
 		if (p_con->cursor <
 		    p_con->original_addr + p_con->v_mem_limit - 1) {
 			*p_vmem++ = ch;
-			*p_vmem++ = DEFAULT_CHAR_COLOR;
+			if(mode == INSERT || ch == ' '){
+				*p_vmem++ = DEFAULT_CHAR_COLOR;
+			}else{
+				*p_vmem++ = RED;
+			}
+
 			p_con->cursor++;
 		}
 		break;
@@ -250,7 +291,7 @@ PRIVATE void clean(CONSOLE* p_con)
 /*======================================================================*
 			   clean_screen
  *======================================================================*/
-PUBLIC void clean_screen(CONSOLE* p_con, int mode)
+PUBLIC void clean_screen(CONSOLE* p_con)
 {
 	if(mode == INSERT){
 		return;
@@ -267,81 +308,86 @@ PRIVATE void reset_stay_time()
 	stay_time = get_ticks();
 }
 /*======================================================================*
-			   find_char
+			   search
  *======================================================================*/
-PUBLIC void find_char(CONSOLE* p_con, char ch)
+PRIVATE void search(CONSOLE* p_con)
+{
+	reset_text_color(p_con);
+	unsigned int cursor = p_con->original_addr;
+	while(cursor < p_con->search_cursor){
+		u8* p_vmem = (u8*)(V_MEM_BASE + cursor * 2);
+		u8* p_vmem_start = (u8*)(V_MEM_BASE + p_con->search_cursor * 2);
+
+		if(*p_vmem == *p_vmem_start){
+			if(*p_vmem == ' ' && *(p_vmem + 1) != *(p_vmem_start + 1)){
+				//disp_str("#");
+				cursor++;
+				continue;
+			}
+			unsigned int s_cursor = cursor;
+			unsigned int search_cursor = p_con->search_cursor;
+			int judge = TRUE;
+			int len = 0;
+			while(search_cursor < p_con->cursor){
+				u8* s_p_vmem = (u8*)(V_MEM_BASE + s_cursor * 2);
+				u8* search_p_vmem = (u8*)(V_MEM_BASE + search_cursor * 2);
+				if(*s_p_vmem == *search_p_vmem){
+					if(*s_p_vmem == ' ' && *(s_p_vmem + 1) != *(search_p_vmem + 1)){
+						//disp_str("#");
+						judge = FALSE;
+						break;
+					}
+				}else{
+					judge = FALSE;
+					break;
+				}
+				s_cursor++;
+				search_cursor++;
+				len++;
+			}
+
+			if(judge == TRUE){
+				s_cursor = cursor;
+				int cnt = 0;
+				while(cnt < len){
+					//disp_str("$");
+					u8* s_p_vmem = (u8*)(V_MEM_BASE + s_cursor * 2);
+					s_cursor++;
+					cnt++;
+					if(*s_p_vmem == ' ') continue;
+					*(s_p_vmem + 1) = RED;
+				}
+			}
+		}
+		cursor++;
+	}
+}
+/*======================================================================*
+			   leave_search_mode
+ *======================================================================*/
+PUBLIC void leave_search_mode(CONSOLE* p_con)
 {
 	u8* p_vmem = (u8*)(V_MEM_BASE + p_con->cursor * 2);
-
-	switch(ch) {
-	case '\n':
-		if (p_con->cursor < p_con->original_addr +
-		    p_con->v_mem_limit - SCREEN_WIDTH) {
-			unsigned int cursor = p_con->original_addr + SCREEN_WIDTH * 
-				((p_con->cursor - p_con->original_addr) /
-				 SCREEN_WIDTH + 1);
-			while(p_con->cursor != cursor){
-				*(p_vmem++) = ' ';
-				*(p_vmem++) = BLACK;
-				p_con->cursor++;
-			}	
-			
-		}
-		break;
-	case '\b':
-		if (p_con->cursor > p_con->original_addr) {
-			if(*(p_vmem-1) == BLACK){
-				int cnt = 0;
-				while(*(p_vmem - 1) == BLACK && cnt < SCREEN_WIDTH){
-					p_con->cursor--;
-					*(p_vmem-2) = ' ';
-					*(p_vmem-1) = DEFAULT_CHAR_COLOR;
-					p_vmem -= 2;
-					cnt++;
-				}
-			}else if(*(p_vmem-1) == BLUE){
-				int cnt = 0;
-				while(cnt < 4){
-					p_con->cursor--;
-					*(p_vmem-2) = ' ';
-					*(p_vmem-1) = DEFAULT_CHAR_COLOR;
-					p_vmem -= 2;
-					cnt++;
-				}
-			}else{
-				p_con->cursor--;
-				*(p_vmem-2) = ' ';
-				*(p_vmem-1) = DEFAULT_CHAR_COLOR;
-			}
-
-		}
-		break;
-	case '\t':
-		if (p_con->cursor <
-		    p_con->original_addr + p_con->v_mem_limit - 1) {
-			int cnt = 0;
-			while(cnt < 4){
-				*p_vmem++ = ' ';
-				*p_vmem++ = BLUE;
-				p_con->cursor++;
-				cnt++;
-			}
-			
-		}
-		break;
-	default:
-		if (p_con->cursor <
-		    p_con->original_addr + p_con->v_mem_limit - 1) {
-			*p_vmem++ = ch;
-			*p_vmem++ = RED;
-			p_con->cursor++;
-		}
-		break;
+	while(p_con->cursor > p_con->search_cursor){
+		p_con->cursor--;
+		*(p_vmem-2) = ' ';
+		*(p_vmem-1) = DEFAULT_CHAR_COLOR;
+		p_vmem -= 2;
 	}
-
-	while (p_con->cursor >= p_con->current_start_addr + SCREEN_SIZE) {
-		scroll_screen(p_con, SCR_DN);
-	}
-	reset_stay_time();
 	flush(p_con);
+	unsigned int cursor = p_con->original_addr;
+	reset_text_color(p_con);
+}
+/*======================================================================*
+			   reset_text_color
+ *======================================================================*/
+PRIVATE void reset_text_color(CONSOLE* p_con)
+{
+	unsigned int cursor = p_con->original_addr;
+	while(cursor < p_con->search_cursor){
+		u8* p_vmem = (u8*)(V_MEM_BASE + cursor * 2);
+		cursor++;
+		if(*p_vmem == ' ') continue;
+		*(p_vmem + 1) = DEFAULT_CHAR_COLOR;
+	}
 }

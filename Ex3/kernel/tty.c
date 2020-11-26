@@ -24,7 +24,7 @@ PRIVATE void init_tty(TTY* p_tty);
 PRIVATE void tty_do_read(TTY* p_tty);
 PRIVATE void tty_do_write(TTY* p_tty);
 PRIVATE void put_key(TTY* p_tty, u32 key);
-PRIVATE int mode = INSERT;
+int mode = INSERT;
 
 /*======================================================================*
                            task_tty
@@ -43,7 +43,7 @@ PUBLIC void task_tty()
 	
 	while (1) {
 		for (p_tty=TTY_FIRST;p_tty<TTY_END;p_tty++) {
-			clean_screen(p_tty->p_console, mode);
+			clean_screen(p_tty->p_console);
 			tty_do_read(p_tty);
 			tty_do_write(p_tty);
 
@@ -76,19 +76,10 @@ PUBLIC void in_process(TTY* p_tty, u32 key)
                 int raw_code = key & MASK_RAW;
                 switch(raw_code) {
                 case ENTER:
-			if(mode == INSERT){
-				put_key(p_tty, '\n');
-			}else{
-				find_char(p_tty,'\n');
-			}			
+			put_key(p_tty, '\n');			
 			break;
                 case BACKSPACE:
-			if(mode == INSERT){
-				put_key(p_tty, '\b');
-			}else{
-				find_char(p_tty, '\b');
-			}
-			
+			put_key(p_tty, '\b');
 			break;
                 case UP:
                         if ((key & FLAG_SHIFT_L) || (key & FLAG_SHIFT_R)) {
@@ -101,17 +92,15 @@ PUBLIC void in_process(TTY* p_tty, u32 key)
 			}
 			break;
 		case TAB:
-			if(mode == INSERT){
-				put_key(p_tty, '\t');
-			}else{
-				find_char(p_tty, '\t');
-			}
+			put_key(p_tty, '\t');
 			break;
 		case ESC:
 			if(mode == INSERT){
-				mode = FIND;
+				p_tty->p_console->search_cursor = p_tty->p_console->cursor;
+				mode = SEARCH;
 			}else{
 				mode = INSERT;
+				leave_search_mode(p_tty->p_console);
 			}
 		case F1:
 		case F2:
