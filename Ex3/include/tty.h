@@ -7,7 +7,8 @@
 
 #ifndef _ORANGES_TTY_H_
 #define _ORANGES_TTY_H_
-
+#define INSERT          0
+#define FIND            1
 
 #define TTY_IN_BYTES	256	/* tty input queue size */
 

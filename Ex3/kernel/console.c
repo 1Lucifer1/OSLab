@@ -25,6 +25,10 @@
 PRIVATE void set_cursor(unsigned int position);
 PRIVATE void set_video_start_addr(u32 addr);
 PRIVATE void flush(CONSOLE* p_con);
+PRIVATE void reset_stay_time();
+PRIVATE void clean(CONSOLE* p_con);
+
+PRIVATE int stay_time = 0;
 
 /*======================================================================*
 			   init_screen
@@ -55,6 +59,7 @@ PUBLIC void init_screen(TTY* p_tty)
 	}
 
 	set_cursor(p_tty->p_console->cursor);
+	clean(p_tty->p_console);
 }
 
 
@@ -78,16 +83,56 @@ PUBLIC void out_char(CONSOLE* p_con, char ch)
 	case '\n':
 		if (p_con->cursor < p_con->original_addr +
 		    p_con->v_mem_limit - SCREEN_WIDTH) {
-			p_con->cursor = p_con->original_addr + SCREEN_WIDTH * 
+			unsigned int cursor = p_con->original_addr + SCREEN_WIDTH * 
 				((p_con->cursor - p_con->original_addr) /
 				 SCREEN_WIDTH + 1);
+			while(p_con->cursor != cursor){
+				*(p_vmem++) = ' ';
+				*(p_vmem++) = BLACK;
+				p_con->cursor++;
+			}	
+			
 		}
 		break;
 	case '\b':
 		if (p_con->cursor > p_con->original_addr) {
-			p_con->cursor--;
-			*(p_vmem-2) = ' ';
-			*(p_vmem-1) = DEFAULT_CHAR_COLOR;
+			if(*(p_vmem-1) == BLACK){
+				int cnt = 0;
+				while(*(p_vmem - 1) == BLACK && cnt < SCREEN_WIDTH){
+					p_con->cursor--;
+					*(p_vmem-2) = ' ';
+					*(p_vmem-1) = DEFAULT_CHAR_COLOR;
+					p_vmem -= 2;
+					cnt++;
+				}
+			}else if(*(p_vmem-1) == BLUE){
+				int cnt = 0;
+				while(cnt < 4){
+					p_con->cursor--;
+					*(p_vmem-2) = ' ';
+					*(p_vmem-1) = DEFAULT_CHAR_COLOR;
+					p_vmem -= 2;
+					cnt++;
+				}
+			}else{
+				p_con->cursor--;
+				*(p_vmem-2) = ' ';
+				*(p_vmem-1) = DEFAULT_CHAR_COLOR;
+			}
+
+		}
+		break;
+	case '\t':
+		if (p_con->cursor <
+		    p_con->original_addr + p_con->v_mem_limit - 1) {
+			int cnt = 0;
+			while(cnt < 4){
+				*p_vmem++ = ' ';
+				*p_vmem++ = BLUE;
+				p_con->cursor++;
+				cnt++;
+			}
+			
 		}
 		break;
 	default:
@@ -103,7 +148,7 @@ PUBLIC void out_char(CONSOLE* p_con, char ch)
 	while (p_con->cursor >= p_con->current_start_addr + SCREEN_SIZE) {
 		scroll_screen(p_con, SCR_DN);
 	}
-
+	reset_stay_time();
 	flush(p_con);
 }
 
@@ -188,4 +233,115 @@ PUBLIC void scroll_screen(CONSOLE* p_con, int direction)
 	set_video_start_addr(p_con->current_start_addr);
 	set_cursor(p_con->cursor);
 }
+/*======================================================================*
+			   clean
+ *======================================================================*/
+PRIVATE void clean(CONSOLE* p_con)
+{
+	u8* p_vmem = (u8*)(V_MEM_BASE + p_con->cursor * 2);
+	while(p_con->cursor > p_con->original_addr){
+		p_con->cursor--;
+		*(p_vmem-2) = ' ';
+		*(p_vmem-1) = DEFAULT_CHAR_COLOR;
+		p_vmem -= 2;
+	}
+	flush(p_con);
+}
+/*======================================================================*
+			   clean_screen
+ *======================================================================*/
+PUBLIC void clean_screen(CONSOLE* p_con, int mode)
+{
+	if(mode == INSERT){
+		return;
+	}
+	if(((get_ticks() - stay_time) * 1000 / HZ) > 200000){
+		clean(p_con);
+	}
+}
+/*======================================================================*
+			   reset_stay_time
+ *======================================================================*/
+PRIVATE void reset_stay_time()
+{
+	stay_time = get_ticks();
+}
+/*======================================================================*
+			   find_char
+ *======================================================================*/
+PUBLIC void find_char(CONSOLE* p_con, char ch)
+{
+	u8* p_vmem = (u8*)(V_MEM_BASE + p_con->cursor * 2);
 
+	switch(ch) {
+	case '\n':
+		if (p_con->cursor < p_con->original_addr +
+		    p_con->v_mem_limit - SCREEN_WIDTH) {
+			unsigned int cursor = p_con->original_addr + SCREEN_WIDTH * 
+				((p_con->cursor - p_con->original_addr) /
+				 SCREEN_WIDTH + 1);
+			while(p_con->cursor != cursor){
+				*(p_vmem++) = ' ';
+				*(p_vmem++) = BLACK;
+				p_con->cursor++;
+			}	
+			
+		}
+		break;
+	case '\b':
+		if (p_con->cursor > p_con->original_addr) {
+			if(*(p_vmem-1) == BLACK){
+				int cnt = 0;
+				while(*(p_vmem - 1) == BLACK && cnt < SCREEN_WIDTH){
+					p_con->cursor--;
+					*(p_vmem-2) = ' ';
+					*(p_vmem-1) = DEFAULT_CHAR_COLOR;
+					p_vmem -= 2;
+					cnt++;
+				}
+			}else if(*(p_vmem-1) == BLUE){
+				int cnt = 0;
+				while(cnt < 4){
+					p_con->cursor--;
+					*(p_vmem-2) = ' ';
+					*(p_vmem-1) = DEFAULT_CHAR_COLOR;
+					p_vmem -= 2;
+					cnt++;
+				}
+			}else{
+				p_con->cursor--;
+				*(p_vmem-2) = ' ';
+				*(p_vmem-1) = DEFAULT_CHAR_COLOR;
+			}
+
+		}
+		break;
+	case '\t':
+		if (p_con->cursor <
+		    p_con->original_addr + p_con->v_mem_limit - 1) {
+			int cnt = 0;
+			while(cnt < 4){
+				*p_vmem++ = ' ';
+				*p_vmem++ = BLUE;
+				p_con->cursor++;
+				cnt++;
+			}
+			
+		}
+		break;
+	default:
+		if (p_con->cursor <
+		    p_con->original_addr + p_con->v_mem_limit - 1) {
+			*p_vmem++ = ch;
+			*p_vmem++ = RED;
+			p_con->cursor++;
+		}
+		break;
+	}
+
+	while (p_con->cursor >= p_con->current_start_addr + SCREEN_SIZE) {
+		scroll_screen(p_con, SCR_DN);
+	}
+	reset_stay_time();
+	flush(p_con);
+}

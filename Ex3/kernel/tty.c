@@ -19,10 +19,12 @@
 #define TTY_FIRST	(tty_table)
 #define TTY_END		(tty_table + NR_CONSOLES)
 
+
 PRIVATE void init_tty(TTY* p_tty);
 PRIVATE void tty_do_read(TTY* p_tty);
 PRIVATE void tty_do_write(TTY* p_tty);
 PRIVATE void put_key(TTY* p_tty, u32 key);
+PRIVATE int mode = INSERT;
 
 /*======================================================================*
                            task_tty
@@ -30,6 +32,7 @@ PRIVATE void put_key(TTY* p_tty, u32 key);
 PUBLIC void task_tty()
 {
 	TTY*	p_tty;
+	
 
 	init_keyboard();
 
@@ -37,10 +40,13 @@ PUBLIC void task_tty()
 		init_tty(p_tty);
 	}
 	select_console(0);
+	
 	while (1) {
 		for (p_tty=TTY_FIRST;p_tty<TTY_END;p_tty++) {
+			clean_screen(p_tty->p_console, mode);
 			tty_do_read(p_tty);
 			tty_do_write(p_tty);
+
 		}
 	}
 }
@@ -70,10 +76,19 @@ PUBLIC void in_process(TTY* p_tty, u32 key)
                 int raw_code = key & MASK_RAW;
                 switch(raw_code) {
                 case ENTER:
-			put_key(p_tty, '\n');
+			if(mode == INSERT){
+				put_key(p_tty, '\n');
+			}else{
+				find_char(p_tty,'\n');
+			}			
 			break;
                 case BACKSPACE:
-			put_key(p_tty, '\b');
+			if(mode == INSERT){
+				put_key(p_tty, '\b');
+			}else{
+				find_char(p_tty, '\b');
+			}
+			
 			break;
                 case UP:
                         if ((key & FLAG_SHIFT_L) || (key & FLAG_SHIFT_R)) {
@@ -85,6 +100,19 @@ PUBLIC void in_process(TTY* p_tty, u32 key)
 				scroll_screen(p_tty->p_console, SCR_UP);
 			}
 			break;
+		case TAB:
+			if(mode == INSERT){
+				put_key(p_tty, '\t');
+			}else{
+				find_char(p_tty, '\t');
+			}
+			break;
+		case ESC:
+			if(mode == INSERT){
+				mode = FIND;
+			}else{
+				mode = INSERT;
+			}
 		case F1:
 		case F2:
 		case F3:
