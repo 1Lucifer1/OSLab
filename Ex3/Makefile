@@ -47,7 +47,11 @@ clean :
 	rm -f $(OBJS)
 
 run :	image
+<<<<<<< HEAD
 		bochs -f bochsrc
+=======
+		bochs
+>>>>>>> 7b6c89e4a0aaae323fa777073dcb23e5fe36c1a3
 
 realclean :
 	rm -f $(OBJS) $(ORANGESBOOT) $(ORANGESKERNEL)
