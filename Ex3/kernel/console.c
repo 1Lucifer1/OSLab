@@ -80,8 +80,10 @@ PUBLIC int is_current_console(CONSOLE* p_con)
  *======================================================================*/
 PUBLIC void out_char(CONSOLE* p_con, char ch)
 {
-	u8* p_vmem = (u8*)(V_MEM_BASE + p_con->cursor * 2);
+	if(mode == AFTER_SEARCH) return;
 
+	u8* p_vmem = (u8*)(V_MEM_BASE + p_con->cursor * 2);
+	
 	switch(ch) {
 	case '\n':
 		if(mode == INSERT){
@@ -98,6 +100,7 @@ PUBLIC void out_char(CONSOLE* p_con, char ch)
 			
 			}
 		}else{
+			mode = AFTER_SEARCH;
 			search(p_con);
 		}
 		break;
