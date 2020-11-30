@@ -296,7 +296,7 @@ PRIVATE void clean(CONSOLE* p_con)
  *======================================================================*/
 PUBLIC void clean_screen(CONSOLE* p_con)
 {
-	if(mode == INSERT){
+	if(mode == SEARCH){
 		return;
 	}
 	if(((get_ticks() - stay_time) * 1000 / HZ) > 200000){
