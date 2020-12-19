@@ -32,7 +32,18 @@ PUBLIC void spurious_irq(int irq);
 
 /* clock.c */
 PUBLIC void clock_handler(int irq);
+PUBLIC void init_clock();
 
+/* keyboard.c */
+PUBLIC void init_keyboard();
+
+/* tty.c */
+PUBLIC void task_tty();
+PUBLIC void in_process(TTY* p_tty, u32 key);
+
+/* console.c */
+PUBLIC void out_char(CONSOLE* p_con, char ch);
+PUBLIC void scroll_screen(CONSOLE* p_con, int direction);
 
 /* 以下是系统调用相关 */
 

@@ -7,7 +7,7 @@ megs: 32
 
 # filename of ROM images
 romimage: file=/usr/share/bochs/BIOS-bochs-latest
-vgaromimage: /usr/share/vgabios/vgabios.bin
+vgaromimage: file=/usr/share/vgabios/vgabios.bin
 
 # what disk images will be used
 floppya: 1_44=a.img, status=inserted
