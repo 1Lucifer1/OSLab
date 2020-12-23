@@ -61,14 +61,30 @@ PUBLIC int kernel_main()
 		selector_ldt += 1 << 3;
 	}
 
-	proc_table[0].ticks = proc_table[0].priority = 15;
-	proc_table[1].ticks = proc_table[1].priority =  5;
-	proc_table[2].ticks = proc_table[2].priority =  3;
+	proc_table[0].ticks = proc_table[0].priority = 1;
+	proc_table[1].ticks = proc_table[1].priority = 1;
+	proc_table[2].ticks = proc_table[2].priority = 1;
+
+	proc_table[0].sleep = 0;
+	proc_table[1].sleep = 0;
+	proc_table[2].sleep = 0;
 
 	k_reenter = 0;
 	ticks = 0;
 
+	rmutex.value = 1;
+	rmutex.length = 0;
+	memset(rmutex.queue, -1, 10 * sizeof(int));
+	
+	wmutex.value = 1;
+	wmutex.length = 0;
+	memset(wmutex.queue, -1, 10 * sizeof(int));
+
+	readcount = 0;
+
 	p_proc_ready	= proc_table;
+
+	clean_screen();
 
         /* 初始化 8253 PIT */
         out_byte(TIMER_MODE, RATE_GENERATOR);
@@ -88,11 +104,7 @@ PUBLIC int kernel_main()
  *======================================================================*/
 void TestA()
 {
-	int i = 0;
-	while (1) {
-		disp_str("A.");
-		milli_delay(10);
-	}
+	read("A.");
 }
 
 /*======================================================================*
@@ -100,21 +112,132 @@ void TestA()
  *======================================================================*/
 void TestB()
 {
-	int i = 0x1000;
+	read("B.");
+}
+
+/*======================================================================*
+                               TestC
+ *======================================================================*/
+void TestC()
+{
+	read("C.");
+}
+
+/*======================================================================*
+                               TestD
+ *======================================================================*/
+void TestD()
+{
+	//write("D.");
+}
+
+/*======================================================================*
+                               TestE
+ *======================================================================*/
+void TestE()
+{
+	//write("E.");
+}
+
+/*======================================================================*
+                               TestF
+ *======================================================================*/
+void TestF()
+{
+	//write("F.");
+}
+
+/*======================================================================*
+                               clean_screen
+ *======================================================================*/
+PUBLIC void clean_screen(){
+	memset(0xB8000, 0, 80 * 25 * 2);
+	disp_pos = 0;
+}
+
+/*======================================================================*
+                               wait
+ *======================================================================*/
+PUBLIC void wait(SEMAPHORE* s){
+	*(s->queue + s->length) = p_proc_ready - proc_table;
+	s->length++;
+	// disp_int(p_proc_ready - proc_table);
+}
+
+/*======================================================================*
+                               wake_up
+ *======================================================================*/
+PUBLIC void wake_up(SEMAPHORE* s){
+	p_proc_ready = proc_table + s->queue[0];
+	for(int i = 0; i < s->length - 1; i++){
+		s->queue[i] = s->queue[i + 1];
+	}
+	s->queue[s->length] = -1;
+	s->length--;
+}
+
+/*======================================================================*
+                               read
+ *======================================================================*/
+PUBLIC void read(char* name){
 	while(1){
-		disp_str("B.");
-		milli_delay(10);
+		P(&rmutex);
+		if(readcount == 0) P(&wmutex);
+		readcount++;
+		V(&rmutex);
+
+		int cnt = 0;
+		switch(name[0]){
+			case 'A':
+				cnt = 2;
+				break;
+			case 'B':
+				cnt = 3;
+				break;
+			case 'C':
+				cnt = 3;
+				break;
+		}
+
+		while(cnt > 0){
+			print_str(name);
+			print_str(" is reading.\n");
+			milli_delay(TIME_SLICE);
+			cnt--;
+		}
+
+		P(&rmutex);
+		readcount--;
+		if(readcount == 0) V(&wmutex);
+		V(&rmutex);
 	}
 }
 
 /*======================================================================*
-                               TestB
+                               write
  *======================================================================*/
-void TestC()
-{
-	int i = 0x2000;
+PUBLIC void write(char* name){
 	while(1){
-		disp_str("C.");
-		milli_delay(10);
+		P(&wmutex);
+
+		int cnt = 0;
+		switch(name[0]){
+			case 'D':
+				cnt = 3;
+				break;
+			case 'E':
+				cnt = 4;
+				break;
+		}
+
+		while(cnt > 0){
+			print_str(name);
+			print_str(" is writinging.\n");
+			milli_delay(TIME_SLICE);
+			cnt--;
+		}
+
+		V(&wmutex);
 	}
 }
+

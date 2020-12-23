@@ -25,5 +25,9 @@ PUBLIC	TASK	task_table[NR_TASKS] = {{TestA, STACK_SIZE_TESTA, "TestA"},
 
 PUBLIC	irq_handler		irq_table[NR_IRQ];
 
-PUBLIC	system_call		sys_call_table[NR_SYS_CALL] = {sys_get_ticks};
+PUBLIC	system_call	sys_call_table[NR_SYS_CALL] = {sys_get_ticks, sys_process_sleep, sys_print_str, sys_P, sys_V};
 
+PUBLIC	int		p_colors[NR_TASKS] = {WHITE, RED, GREEN};
+
+PUBLIC	SEMAPHORE	wmutex, rmutex;
+PUBLIC	int		readcount = 0;

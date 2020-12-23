@@ -29,3 +29,7 @@ extern	char		task_stack[];
 extern  TASK            task_table[];
 extern	irq_handler	irq_table[];
 
+extern	int		p_colors[];
+
+extern	SEMAPHORE	wmutex, rmutex;
+extern	int		readcount;
