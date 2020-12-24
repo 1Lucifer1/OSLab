@@ -4,7 +4,8 @@
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
                                                     Forrest Yu, 2005
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
-
+#define TRUE 1
+#define FALSE 0
 
 typedef struct s_stackframe {	
 					/* proc_ptr points here		↑ Low		*/
@@ -39,6 +40,7 @@ typedef struct s_proc {
         int priority;
 
 	int sleep;
+	int wait;
 
 	u32 pid;                   /* process id passed in from MM */
 	char p_name[16];           /* name of the process */
@@ -51,14 +53,20 @@ typedef struct s_task {
 }TASK;
 
 /* Number of tasks */
-#define NR_TASKS	3
+#define NR_TASKS	6
 
 /* stacks of tasks */
 #define STACK_SIZE_TESTA	0x8000
 #define STACK_SIZE_TESTB	0x8000
 #define STACK_SIZE_TESTC	0x8000
+#define STACK_SIZE_TESTD	0x8000
+#define STACK_SIZE_TESTE	0x8000
+#define STACK_SIZE_TESTF	0x8000
 
 #define STACK_SIZE_TOTAL	(STACK_SIZE_TESTA + \
 				STACK_SIZE_TESTB + \
-				STACK_SIZE_TESTC)
+				STACK_SIZE_TESTC + \
+				STACK_SIZE_TESTD + \
+				STACK_SIZE_TESTE + \
+				STACK_SIZE_TESTF)
 

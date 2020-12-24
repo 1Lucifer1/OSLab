@@ -13,7 +13,7 @@ typedef struct semaphore{
 	int	length;
 }SEMAPHORE;
 
-#define TIME_SLICE 1000
+#define TIME_SLICE 5000
 
 /* klib.asm */
 PUBLIC void	out_byte(u16 port, u8 value);

@@ -31,5 +31,8 @@ extern	irq_handler	irq_table[];
 
 extern	int		p_colors[];
 
-extern	SEMAPHORE	wmutex, rmutex;
+extern	SEMAPHORE	wmutex, rmutex, x, y, z, max_read;
 extern	int		readcount;
+extern	int		writecount;
+extern	int		rw;
+extern	int		readers[];

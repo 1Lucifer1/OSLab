@@ -21,11 +21,12 @@ PUBLIC void schedule()
 	PROCESS* p;
 	int	 greatest_ticks = 0;
 
+	// read first
 	while (!greatest_ticks) {
 		for (p = proc_table; p < proc_table+NR_TASKS; p++) {
 			if(p->sleep > 0) p->sleep--;
 			if (p->ticks > greatest_ticks) {
-				if(p->sleep > 0) continue;
+				if(p->sleep > 0 || p->wait) continue;
 				greatest_ticks = p->ticks;
 				p_proc_ready = p;
 			}
@@ -35,11 +36,32 @@ PUBLIC void schedule()
 
 		if (!greatest_ticks) {
 			for (p = proc_table; p < proc_table+NR_TASKS; p++) {
-				if(p->sleep > 0) continue;
+				if(p->sleep > 0 || p->wait) continue;
 				p->ticks = p->priority;
 			}
 		}
 	}
+
+	// write first
+	/*while (!greatest_ticks) {
+		for (p = proc_table+NR_TASKS-1; p >= proc_table; p--) {
+			if(p->sleep > 0) p->sleep--;
+			if (p->ticks > greatest_ticks) {
+				if(p->sleep > 0 || p->wait) continue;
+				greatest_ticks = p->ticks;
+				p_proc_ready = p;
+			}
+			// if(p->sleep > 0) disp_int(p->sleep);
+			//disp_str(".");
+		}
+
+		if (!greatest_ticks) {
+			for (p = proc_table+NR_TASKS-1; p >= proc_table; p--) {
+				if(p->sleep > 0 || p->wait) continue;
+				p->ticks = p->priority;
+			}
+		}
+	}*/
 }
 
 /*======================================================================*
@@ -74,22 +96,9 @@ PUBLIC int sys_print_str(char* str)
  *======================================================================*/
 PUBLIC int sys_P(SEMAPHORE* s)
 {
-	int jud = 0;
-	for(int i = 0; i < s->length; i++){
-		if(s->queue[i]  == (p_proc_ready - proc_table)){
-			jud = 1;
-			break;
-		}
-	}
-
-	if(jud == 1){
-		return 0;
-	}
-
 	s->value--;
-	if(s->value < 0){
-		wait(s);
-	}
+	if(s->value < 0) wait(s);
+	schedule();
 	return 0;
 }
 
@@ -99,9 +108,8 @@ PUBLIC int sys_P(SEMAPHORE* s)
 PUBLIC int sys_V(SEMAPHORE* s)
 {
 	s->value++;
-	if(s->value <= 0){
-		wake_up(s);
-	}
+	if(s->value <= 0) wake_up(s);
+	schedule();
 	return 0;
 }
 
