@@ -22,7 +22,7 @@ PUBLIC void schedule()
 	int	 greatest_ticks = 0;
 
 	// read first
-	while (!greatest_ticks) {
+	/*while (!greatest_ticks) {
 		for (p = proc_table; p < proc_table+NR_TASKS; p++) {
 			if(p->sleep > 0) p->sleep--;
 			if (p->ticks > greatest_ticks) {
@@ -40,10 +40,10 @@ PUBLIC void schedule()
 				p->ticks = p->priority;
 			}
 		}
-	}
+	}*/
 
 	// write first
-	/*while (!greatest_ticks) {
+	while (!greatest_ticks) {
 		for (p = proc_table+NR_TASKS-1; p >= proc_table; p--) {
 			if(p->sleep > 0) p->sleep--;
 			if (p->ticks > greatest_ticks) {
@@ -61,7 +61,7 @@ PUBLIC void schedule()
 				p->ticks = p->priority;
 			}
 		}
-	}*/
+	}
 }
 
 /*======================================================================*

@@ -108,10 +108,10 @@ PUBLIC int kernel_main()
 	writecount = 0;
 
 	// read first
-	p_proc_ready	= proc_table;
+	//p_proc_ready	= proc_table;
 
 	// write first
-	//p_proc_ready	= proc_table+NR_TASKS-1;
+	p_proc_ready	= proc_table+NR_TASKS-1;
 
 	clean_screen();
 
@@ -262,7 +262,7 @@ PRIVATE void read_file(char* name){
  *======================================================================*/
 PUBLIC void read(char* name){
 	// reader first
-	while(1){
+	/*while(1){
 		P(&rmutex);
 		if(readcount == 0) P(&wmutex);
 		readcount++;
@@ -278,16 +278,14 @@ PUBLIC void read(char* name){
 		V(&rmutex);
 
 		milli_delay(10 * TIME_SLICE);
-	}
+	}*/
 
 	// writer first
-	/*while(1){
+	while(1){
 		P(&z);
 		P(&rmutex);
 		P(&x);
-		if(readcount >= max_read) {
-			milli_delay(TIME_SLICE);
-		}
+		
 		readcount++;
 		if(readcount == 1) P(&wmutex);
 
@@ -295,7 +293,10 @@ PUBLIC void read(char* name){
 		V(&rmutex);
 		V(&z);
 
+		P(&max_read);
 		read_file(name);
+		V(&max_read);
+
 
 		P(&x);
 		readcount--;
@@ -303,7 +304,7 @@ PUBLIC void read(char* name){
 		V(&x);
 
 		//process_sleep(TIME_SLICE);
-	}*/
+	}
 }
 
 /*======================================================================*
@@ -340,7 +341,7 @@ PRIVATE void write_file(char* name){
  *======================================================================*/
 PUBLIC void write(char* name){
 	// reader first
-	while(1){
+	/*while(1){
 		P(&wmutex);
 
 		write_file(name);
@@ -348,10 +349,10 @@ PUBLIC void write(char* name){
 		V(&wmutex);
 
 		//process_sleep(TIME_SLICE);
-	}
+	}*/
 
 	// writer first
-	/*while(1){
+	while(1){
 		P(&y);
 		writecount++;
 		if(writecount == 1) P(&rmutex);
@@ -368,7 +369,7 @@ PUBLIC void write(char* name){
 
 		milli_delay(5 * TIME_SLICE);
 
-	}*/
+	}
 }
 
 
