@@ -11,7 +11,6 @@
 1. 调用disp_color_str()函数，并且定义color数组使得每一个进程对应的颜色不同。
 2. 在kliba.asm里面对disp_color_str()函数添加esi、edi的进栈出栈，避免系统因为时钟中断而导致字符串打印不全。
 
-1. 
 
 ### PV操作
 
